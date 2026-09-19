@@ -15,10 +15,16 @@ from cacheflow.models import RouteDecision, RouteTier
 # model list -- the list advertises models that 404 for new keys (both
 # "gemini-2.0-flash" and the "gemini-2.5-*" pair do exactly that).
 #
-# For a real deployment point HEAVY at a pro-tier model (`gemini-pro-latest`);
-# it needs pro quota, which the key we calibrated against did not have (429).
+# Free-tier request quota is metered PER MODEL PER DAY, so a heavy default that
+# has burned its daily budget makes every heavy query fall back to the mock --
+# silently, because the fallback is by design. gemini-3.8-flash and
+# gemini-flash-latest were both exhausted when these defaults were chosen.
+#
+# For a real deployment point HEAVY at a pro-tier model (`gemini-pro-latest`),
+# which needs paid quota. Nothing in the cache or the routing logic depends on
+# that: the tier split is a cost decision, not a correctness one.
 CHEAP_MODEL = "gemini-3.5-flash-lite"
-HEAVY_MODEL = "gemini-3.8-flash"
+HEAVY_MODEL = "gemini-3.5-flash"
 
 #: Score at or above which a query is escalated to the heavy tier.
 ESCALATION_THRESHOLD = 1.0

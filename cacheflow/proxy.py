@@ -49,14 +49,21 @@ class CacheFlowEngine:
         ttl_seconds: float | None = None,
         max_entries: int = 1024,
     ) -> None:
-        self.cache = cache or SemanticCache(
-            embedder=embedder,
-            threshold=threshold,
-            ttl_seconds=ttl_seconds,
-            max_entries=max_entries,
+        # `is None`, never `or`: SemanticCache defines __len__, so an EMPTY cache
+        # is falsy and `cache or SemanticCache(...)` silently discards the
+        # injected one -- which is every injected cache, at construction time.
+        self.cache = (
+            cache
+            if cache is not None
+            else SemanticCache(
+                embedder=embedder,
+                threshold=threshold,
+                ttl_seconds=ttl_seconds,
+                max_entries=max_entries,
+            )
         )
-        self.router = router or ComplexityRouter()
-        self.client = client or LLMClient()
+        self.router = router if router is not None else ComplexityRouter()
+        self.client = client if client is not None else LLMClient()
         self._hits = 0
         self._misses = 0
         self._latency_saved_ms = 0.0
@@ -167,7 +174,7 @@ def create_app(engine: CacheFlowEngine | None = None) -> FastAPI:
         version="0.1.0",
         summary="Semantic vector cache and cost-aware model router for LLM traffic",
     )
-    app.state.engine = engine or CacheFlowEngine()
+    app.state.engine = engine if engine is not None else CacheFlowEngine()
 
     def _engine() -> CacheFlowEngine:
         eng: CacheFlowEngine = app.state.engine

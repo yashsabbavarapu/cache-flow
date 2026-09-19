@@ -261,12 +261,15 @@ in `client.py`.
 ## Testing
 
 ```bash
-pytest -v            # 73 tests
+pytest -v            # 76 tests
 mypy --strict cacheflow tests
 ```
 
-The suite is fully offline and deterministic — no network, no API key, no
-sleeps in the default path. Threshold-boundary tests use a `StubEmbedder` that
+The suite is hermetic: it passes identically with `GEMINI_API_KEY` exported and
+unset (verified both ways, 0.17 s each), makes no network calls, and does not
+sleep in the default path. That property is itself tested — a falsy-empty-cache
+bug once let an exported key reach the engine through a *discarded* injection,
+and only an environment-sensitive test run exposed it. Threshold-boundary tests use a `StubEmbedder` that
 places vectors at exact angles, so `0.93` misses and `0.95` hits by
 construction rather than by hoping a real embedder lands there.
 

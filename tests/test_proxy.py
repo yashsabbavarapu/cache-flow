@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from cacheflow.cache import LexicalEmbedder, SemanticCache
 from cacheflow.client import LLMClient
 from cacheflow.proxy import CacheFlowEngine, create_app
-from cacheflow.router import CHEAP_MODEL, HEAVY_MODEL
+from cacheflow.router import CHEAP_MODEL, HEAVY_MODEL, ComplexityRouter
 
 HIT_LATENCY_BUDGET_MS = 15.0
 
@@ -153,3 +153,43 @@ def test_empty_query_is_rejected(client: TestClient) -> None:
 def test_invalid_max_tokens_is_rejected(client: TestClient) -> None:
     response = client.post("/v1/chat", json={"query": "hello", "max_tokens": 0})
     assert response.status_code == 422
+
+
+def test_injected_cache_is_not_silently_replaced() -> None:
+    """SemanticCache.__len__ makes an empty cache falsy.
+
+    `self.cache = cache or SemanticCache(...)` therefore discarded every
+    injected cache and built a default one -- which reaches for a live Gemini
+    embedder when GEMINI_API_KEY happens to be set in the environment.
+    """
+    injected = SemanticCache(embedder=LexicalEmbedder(), threshold=0.5, max_entries=7)
+    assert not injected, "precondition: an empty cache is falsy"
+
+    engine = CacheFlowEngine(cache=injected, client=LLMClient(api_key=""))
+
+    assert engine.cache is injected
+    assert engine.cache.threshold == 0.5
+    assert engine.cache.max_entries == 7
+
+
+def test_injected_router_and_client_are_not_replaced() -> None:
+    router = ComplexityRouter(cheap_model="flash-x", heavy_model="pro-x")
+    client = LLMClient(api_key="", simulate_latency=False)
+    engine = CacheFlowEngine(cache=SemanticCache(embedder=LexicalEmbedder()),
+                             router=router, client=client)
+    assert engine.router is router
+    assert engine.client is client
+
+
+def test_engine_is_offline_even_when_api_key_is_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The suite must be hermetic: a developer's exported key cannot leak in."""
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key-should-not-be-used")
+    engine = CacheFlowEngine(
+        cache=SemanticCache(embedder=LexicalEmbedder()),
+        client=LLMClient(api_key="", simulate_latency=False),
+    )
+    health = TestClient(create_app(engine)).get("/health").json()
+    assert health["embedder"] == "lexical-hash-512"
+    assert health["live_llm"] is False
