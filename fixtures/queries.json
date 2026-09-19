@@ -1,0 +1,20 @@
+{
+  "_comment": "Benchmark trace. Clusters of near-duplicate phrasings, the kind of traffic a support or docs assistant actually sees, interleaved with distinct queries and a heavy-tier task.",
+  "queries": [
+    "How do I reset my password?",
+    "How can I reset my password?",
+    "How do I reset the password?",
+    "How do I reset my password",
+    "What is the refund window for online orders?",
+    "What is the refund window on online orders?",
+    "What's the refund window for online orders?",
+    "Implement a thread-safe LRU cache in Python with generics and full type hints",
+    "Implement a thread safe LRU cache in Python with generics and full type hints",
+    "What are your support hours?",
+    "What are the support hours?",
+    "Compare and contrast optimistic and pessimistic locking, step by step",
+    "Where do I download the desktop app?",
+    "Where can I download the desktop app?",
+    "How do I cancel my subscription?"
+  ]
+}
