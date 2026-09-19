@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from cacheflow.cache import LexicalEmbedder, SemanticCache
 from cacheflow.client import LLMClient
 from cacheflow.proxy import CacheFlowEngine, create_app
+from cacheflow.router import CHEAP_MODEL, HEAVY_MODEL
 
 HIT_LATENCY_BUDGET_MS = 15.0
 
@@ -40,7 +41,7 @@ def test_cold_query_misses_then_paraphrase_hits(client: TestClient) -> None:
 def test_response_headers_report_cache_state(client: TestClient) -> None:
     cold = client.post("/v1/chat", json={"query": "What are your support hours?"})
     assert cold.headers["X-CacheFlow-Cache"] == "MISS"
-    assert cold.headers["X-CacheFlow-Model"] == "gemini-2.0-flash"
+    assert cold.headers["X-CacheFlow-Model"] == CHEAP_MODEL
     assert "X-CacheFlow-Similarity" not in cold.headers
     assert float(cold.headers["X-CacheFlow-Latency-Ms"]) >= 0.0
 
@@ -62,7 +63,7 @@ def test_cache_hit_is_served_within_latency_budget(client: TestClient) -> None:
 
 def test_complex_query_routes_to_heavy_tier(client: TestClient) -> None:
     result = ask(client, "Implement a thread-safe LRU cache in Rust with generics")
-    assert result["model_selected"] == "gemini-2.5-pro"
+    assert result["model_selected"] == HEAVY_MODEL
     assert "tier_heavy" in str(result["rationale"])
 
 

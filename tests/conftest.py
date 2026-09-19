@@ -10,6 +10,7 @@ from cacheflow.cache import LexicalEmbedder, SemanticCache
 from cacheflow.client import LLMClient
 from cacheflow.models import CacheEntry
 from cacheflow.proxy import CacheFlowEngine
+from cacheflow.router import CHEAP_MODEL
 
 
 class StubEmbedder:
@@ -53,7 +54,7 @@ def engine(cache: SemanticCache, offline_client: LLMClient) -> CacheFlowEngine:
 def make_entry(
     query: str,
     response: str = "cached answer",
-    model: str = "gemini-2.0-flash",
+    model: str = CHEAP_MODEL,
     latency_ms: float = 250.0,
     tokens: int = 120,
     timestamp: float | None = None,

@@ -9,9 +9,13 @@ import pytest
 
 from cacheflow.cache import (
     DEFAULT_THRESHOLD,
+    GeminiEmbedder,
     LexicalEmbedder,
+    MemoizingEmbedder,
     SemanticCache,
+    build_embedder,
     cosine_similarity,
+    dig,
 )
 from tests.conftest import StubEmbedder, make_entry
 
@@ -185,3 +189,90 @@ def test_empty_cache_lookup_returns_none(cache: SemanticCache) -> None:
 def test_rejects_zero_capacity() -> None:
     with pytest.raises(ValueError):
         SemanticCache(embedder=LexicalEmbedder(), max_entries=0)
+
+
+class CountingEmbedder:
+    """Counts how many times the expensive inner call is actually made."""
+
+    def __init__(self) -> None:
+        self.name = "counting"
+        self.calls = 0
+        self._inner = LexicalEmbedder()
+
+    def embed(self, text: str) -> list[float]:
+        self.calls += 1
+        return self._inner.embed(text)
+
+
+def test_memoizing_embedder_avoids_repeat_calls() -> None:
+    """A repeated string must not cost a second (remote) embedding call."""
+    inner = CountingEmbedder()
+    memo = MemoizingEmbedder(inner)
+
+    first = memo.embed("How do I reset my password?")
+    second = memo.embed("How do I reset my password?")
+
+    assert first == second
+    assert inner.calls == 1
+    assert (memo.hits, memo.misses) == (1, 1)
+
+
+def test_memoizing_embedder_still_embeds_new_text() -> None:
+    inner = CountingEmbedder()
+    memo = MemoizingEmbedder(inner)
+    memo.embed("first question about invoices")
+    memo.embed("second question about shipping")
+    assert inner.calls == 2
+    assert memo.misses == 2
+
+
+def test_memoizing_embedder_is_bounded_and_lru() -> None:
+    inner = CountingEmbedder()
+    memo = MemoizingEmbedder(inner, max_entries=2)
+    memo.embed("alpha")
+    memo.embed("beta")
+    memo.embed("alpha")      # refresh alpha's recency
+    memo.embed("gamma")      # evicts beta, not alpha
+
+    assert len(memo._memo) == 2
+    before = inner.calls
+    memo.embed("alpha")
+    assert inner.calls == before        # alpha survived
+    memo.embed("beta")
+    assert inner.calls == before + 1    # beta was evicted
+
+
+def test_memoizing_embedder_preserves_inner_name() -> None:
+    assert MemoizingEmbedder(CountingEmbedder()).name == "counting"
+
+
+def test_gemini_embedder_sends_task_type_and_dimensions() -> None:
+    """taskType is load-bearing: without it paraphrase/distinct bands overlap."""
+    embedder = GeminiEmbedder("fake-key")
+    assert embedder.task_type == "SEMANTIC_SIMILARITY"
+    assert embedder.dimensions == 768
+    assert embedder.model == "gemini-embedding-001"
+    assert "gemini-embedding-001:embedContent" in embedder.ENDPOINT.format(
+        model=embedder.model
+    )
+
+
+def test_build_embedder_is_offline_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert isinstance(build_embedder(), LexicalEmbedder)
+
+
+def test_build_embedder_memoizes_live_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    embedder = build_embedder()
+    assert isinstance(embedder, MemoizingEmbedder)
+    assert isinstance(embedder.inner, GeminiEmbedder)
+
+
+def test_dig_walks_and_rejects_bad_paths() -> None:
+    payload = {"candidates": [{"content": {"parts": [{"text": "hi"}]}}]}
+    assert dig(payload, "candidates", 0, "content", "parts", 0, "text") == "hi"
+    with pytest.raises(ValueError):
+        dig(payload, "candidates", 5)
+    with pytest.raises(ValueError):
+        dig(payload, "nope")

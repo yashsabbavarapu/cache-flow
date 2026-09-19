@@ -148,28 +148,59 @@ class LexicalEmbedder:
         return _normalize(vec.tolist())
 
 
+#: ``text-embedding-004`` is retired on v1beta and returns 404; this is its
+#: replacement. Verified against the live model list rather than assumed.
+GEMINI_EMBED_MODEL = "gemini-embedding-001"
+
+#: Both sides of a cache comparison are user questions, so similarity is
+#: symmetric -- SEMANTIC_SIMILARITY, not the asymmetric RETRIEVAL_QUERY /
+#: RETRIEVAL_DOCUMENT pair. This is not a tuning knob: measured on 20 labelled
+#: pairs, omitting it collapses the gap between paraphrases and distinct queries
+#: from +0.00 to -0.10, i.e. the two bands overlap and NO threshold separates
+#: them. See README "Calibrating against live embeddings".
+GEMINI_EMBED_TASK_TYPE = "SEMANTIC_SIMILARITY"
+
+#: The model emits 3072 dimensions by default. Retrieval is a linear scan, so
+#: width is a direct latency cost; 768 is the documented quality/size sweet spot
+#: and truncated outputs are re-normalized below, as Google requires.
+GEMINI_EMBED_DIMENSIONS = 768
+
+
 class GeminiEmbedder:
-    """Google ``text-embedding-004`` via the Generative Language REST API."""
+    """Google ``gemini-embedding-001`` via the Generative Language REST API."""
 
     ENDPOINT = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        "models/text-embedding-004:embedContent"
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent"
     )
 
-    def __init__(self, api_key: str, timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = GEMINI_EMBED_MODEL,
+        dimensions: int | None = GEMINI_EMBED_DIMENSIONS,
+        task_type: str | None = GEMINI_EMBED_TASK_TYPE,
+        timeout: float = 10.0,
+    ) -> None:
         self.api_key = api_key
+        self.model = model
+        self.dimensions = dimensions
+        self.task_type = task_type
         self.timeout = timeout
-        self.name = "gemini-text-embedding-004"
+        self.name = f"gemini-{model}" if not model.startswith("gemini") else model
 
     def embed(self, text: str) -> list[float]:
         import httpx
 
-        payload = {
-            "model": "models/text-embedding-004",
+        payload: dict[str, object] = {
+            "model": f"models/{self.model}",
             "content": {"parts": [{"text": text}]},
         }
+        if self.dimensions is not None:
+            payload["outputDimensionality"] = self.dimensions
+        if self.task_type is not None:
+            payload["taskType"] = self.task_type
         response = httpx.post(
-            self.ENDPOINT,
+            self.ENDPOINT.format(model=self.model),
             json=payload,
             headers={"x-goog-api-key": self.api_key},
             timeout=self.timeout,
@@ -181,11 +212,46 @@ class GeminiEmbedder:
         return _normalize([float(v) for v in values])
 
 
+class MemoizingEmbedder:
+    """Bounded exact-string memo in front of a remote embedder.
+
+    A remote embedding call is ~350-400 ms, and the cache gate pays it on every
+    lookup -- so a repeated query string would otherwise cost a network round
+    trip to discover it is already cached. This collapses that to a dict hit.
+    It only helps byte-identical repeats; a novel paraphrase still pays the call.
+    """
+
+    def __init__(self, inner: Embedder, max_entries: int = 4096) -> None:
+        self.inner = inner
+        self.max_entries = max_entries
+        self.name = inner.name
+        self._memo: OrderedDict[str, list[float]] = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+
+    def embed(self, text: str) -> list[float]:
+        cached = self._memo.get(text)
+        if cached is not None:
+            self._memo.move_to_end(text)
+            self.hits += 1
+            return cached
+        self.misses += 1
+        vector = self.inner.embed(text)
+        self._memo[text] = vector
+        if len(self._memo) > self.max_entries:
+            self._memo.popitem(last=False)
+        return vector
+
+
 def build_embedder(prefer_live: bool = True) -> Embedder:
-    """Gemini when ``GEMINI_API_KEY`` is set, otherwise the offline mock."""
+    """Gemini when ``GEMINI_API_KEY`` is set, otherwise the offline mock.
+
+    The remote backend is memoized; the local one is already faster than a dict
+    lookup would save, so it is returned bare.
+    """
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if prefer_live and api_key:
-        return GeminiEmbedder(api_key)
+        return MemoizingEmbedder(GeminiEmbedder(api_key))
     return LexicalEmbedder()
 
 

@@ -11,8 +11,14 @@ import re
 
 from cacheflow.models import RouteDecision, RouteTier
 
-CHEAP_MODEL = "gemini-2.0-flash"
-HEAVY_MODEL = "gemini-2.5-pro"
+# Defaults verified by actually CALLING generateContent, not by reading the
+# model list -- the list advertises models that 404 for new keys (both
+# "gemini-2.0-flash" and the "gemini-2.5-*" pair do exactly that).
+#
+# For a real deployment point HEAVY at a pro-tier model (`gemini-pro-latest`);
+# it needs pro quota, which the key we calibrated against did not have (429).
+CHEAP_MODEL = "gemini-3.5-flash-lite"
+HEAVY_MODEL = "gemini-3.8-flash"
 
 #: Score at or above which a query is escalated to the heavy tier.
 ESCALATION_THRESHOLD = 1.0

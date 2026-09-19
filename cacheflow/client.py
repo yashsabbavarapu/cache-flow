@@ -13,6 +13,9 @@ from cacheflow.router import CHEAP_MODEL, HEAVY_MODEL
 
 #: USD per 1000 tokens. The heavy rate is the $0.005/1k figure the savings math
 #: in `/metrics` is quoted against.
+#: The heavy rate is the $0.005/1k frontier-tier reference figure that `/metrics`
+#: quotes savings against. It is NOT the rate for the default heavy model above
+#: -- set both to your contracted rates before trusting the dollar column.
 PRICING_USD_PER_1K: dict[RouteTier, float] = {
     RouteTier.TIER_CHEAP: 0.0001,
     RouteTier.TIER_HEAVY: 0.005,
@@ -119,7 +122,14 @@ class LLMClient:
             raise ValueError("candidate carried no parts")
         chunks = [p["text"] for p in parts if isinstance(p, dict) and "text" in p]
         if not chunks:
-            raise ValueError("candidate contained no text")
+            # Thinking models spend the output budget on reasoning and can return
+            # a thoughtSignature with no text when maxOutputTokens is too small.
+            reason = dig(response.json(), "candidates", 0)
+            finish = reason.get("finishReason") if isinstance(reason, dict) else None
+            raise ValueError(
+                f"candidate contained no text (finishReason={finish}); "
+                "raise max_tokens for thinking models"
+            )
         return "".join(str(c) for c in chunks).strip()
 
     @staticmethod
