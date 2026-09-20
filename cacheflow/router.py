@@ -33,9 +33,11 @@ SHORT_QUERY_TOKENS = 50
 LONG_QUERY_TOKENS = 150
 
 _SYNTHESIS_KEYWORDS = frozenset(
-    """implement refactor algorithm debug optimize architect benchmark migrate
-    profile diagnose derive prove analyze critique synthesize design integrate
-    troubleshoot rewrite parallelize instrument""".split()
+    [
+        "implement", "refactor", "algorithm", "debug", "optimize", "architect", "benchmark", "migrate",
+        "profile", "diagnose", "derive", "prove", "analyze", "critique", "synthesize", "design", "integrate",
+        "troubleshoot", "rewrite", "parallelize", "instrument"
+    ]
 )
 
 _REASONING_PHRASES = (

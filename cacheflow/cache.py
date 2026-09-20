@@ -48,11 +48,13 @@ _CONTRACTIONS = {
 # pronouns. Interrogatives (how/what/why/when/where/who) are deliberately KEPT --
 # they change the information need, so they must change the cache key's vector.
 _STOPWORDS = frozenset(
-    "a an the is are am was were be been being do does did done have has had"
-    " can could will would shall should may might must of for to in on at by"
-    " with from as it its i you me my your we us our they them their and or if"
-    " that this these those there here please just"
-    .split()
+    [
+        "a", "an", "the", "is", "are", "am", "was", "were", "be", "been", "being", "do", "does", "did",
+        "done", "have", "has", "had", "can", "could", "will", "would", "shall", "should", "may", "might",
+        "must", "of", "for", "to", "in", "on", "at", "by", "with", "from", "as", "it", "its", "i", "you",
+        "me", "my", "your", "we", "us", "our", "they", "them", "their", "and", "or", "if", "that", "this",
+        "these", "those", "there", "here", "please", "just"
+    ]
 )
 
 
@@ -287,7 +289,7 @@ class SemanticCache:
 
     @staticmethod
     def make_key(namespace: str, query: str) -> str:
-        digest = hashlib.sha1(f"{namespace}\x00{query}".encode("utf-8")).hexdigest()
+        digest = hashlib.sha1(f"{namespace}\x00{query}".encode()).hexdigest()
         return f"{namespace}:{digest[:16]}"
 
     def embed(self, text: str) -> list[float]:

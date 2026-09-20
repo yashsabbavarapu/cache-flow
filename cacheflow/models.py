@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import time
-from enum import Enum
+from enum import Enum, StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class RouteTier(str, Enum):
+class RouteTier(StrEnum):
     """Model tier a cache-miss query is dispatched to."""
 
     TIER_CHEAP = "tier_cheap"

@@ -5,11 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from cacheflow.cache import DEFAULT_THRESHOLD, LexicalEmbedder, SemanticCache, build_embedder
-from cacheflow.client import LLMClient, PRICING_USD_PER_1K
+from cacheflow.client import PRICING_USD_PER_1K, LLMClient
 from cacheflow.models import ProxyResponse, QueryRequest, RouteTier
 from cacheflow.proxy import CacheFlowEngine
 
