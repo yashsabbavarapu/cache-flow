@@ -1,5 +1,7 @@
 # cache-flow
 
+[![CI](https://github.com/yashsabbavarapu/cache-flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yashsabbavarapu/cache-flow/actions/workflows/ci.yml?query=branch%3Amain)
+
 A semantic vector cache and cost-aware model router for LLM traffic. It sits in
 front of your model provider, serves semantically equivalent prompts from a
 local vector store in well under a millisecond, and sends genuine cache misses
